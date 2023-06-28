@@ -1,0 +1,5 @@
+
+macro 2drop drop drop end
+macro / divmod drop end
+macro % divmod swap drop end
+macro != = not end
