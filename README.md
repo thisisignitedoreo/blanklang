@@ -1,14 +1,10 @@
-<p align=center>
-
 # Blank Language
-
-</p>
-Stack based programming language, inspired by [porth](https://gitlab.com/tsoding/porth/).
+Stack based programming language, inspired by [porth](gitlab.com/tsoding/porth).
 
 ## Roadmap
 
 - [x] Basic functionality
-- [x] Turing completeness (see (rule110.bl)[/examples/rule110.bl])
+- [x] Turing completeness (see [rule110.bl](/examples/rule110.bl))
 - [ ] idk something else
 
 ## Quickstart
