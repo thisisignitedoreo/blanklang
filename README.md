@@ -14,7 +14,7 @@ Stack based programming language, inspired by [porth](https://gitlab.com/tsoding
 ## Quickstart
 
 ```console
-$ python3 main.py helloworld.bl
+$ python3 main.py examples/helloworld.bl
 Hello! :^)
 ```
 
