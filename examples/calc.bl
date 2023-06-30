@@ -1,0 +1,30 @@
+"std.bl" include
+
+"Action? (+|-|*|/|%|^) " . ,
+
+dup "+" = if
+	"First number: " . , int
+	"Second number: " . , int
+	swap + str "Result: " + "\n" swap + .
+else dup "-" = if
+	"First number: " . , int
+	"Second number: " . , int
+	swap - str "Result: " + "\n" swap + .
+else dup "*" = if
+	"First number: " . , int
+	"Second number: " . , int
+	swap * str "Result: " + "\n" swap + .
+else dup "/" = if
+	"First number: " . , int
+	"Second number: " . , int
+	swap / str "Result: " + "\n" swap + .
+else dup "%" = if
+	"First number: " . , int
+	"Second number: " . , int
+	swap % str "Result: " + "\n" swap + .
+else dup "^" = if
+	"First number: " . , int
+	"Second number: " . , int
+	swap ^ str "Result: " + "\n" swap + .
+end end end end end end  // .-.
+

@@ -1,16 +1,20 @@
+<p align=center>
+
 # Blank Language
-Stack based programming language, inspired by [porth](gitlab.com/tsoding/porth).
+
+</p>
+Stack based programming language, inspired by [porth](https://gitlab.com/tsoding/porth/).
 
 ## Roadmap
 
 - [x] Basic functionality
-- [x] Turing completeness (see [rule110.bl](/examples/rule110.bl))
+- [x] Turing completeness (see (rule110.bl)[/examples/rule110.bl])
 - [ ] idk something else
 
 ## Quickstart
 
 ```console
-$ python3 main.py examples/helloworld.bl
+$ python3 main.py helloworld.bl
 Hello! :^)
 ```
 

@@ -2,6 +2,8 @@ import sys
 import ast
 import os
 
+ver = "dev"
+
 iota_counter = 0
 def iota(reset=0):
     global iota_counter
@@ -18,6 +20,7 @@ OP_PLUS = iota()
 OP_MINUS = iota()
 OP_MULT = iota()
 OP_DIVMOD = iota()
+OP_POW = iota()
 OP_INPUT = iota()
 OP_DUMP = iota()
 OP_STRINGIFY = iota()
@@ -31,6 +34,8 @@ OP_DROP = iota()
 OP_MACRO = iota()
 OP_EQUALS = iota()
 OP_NOT = iota()
+OP_OR = iota()
+OP_AND = iota()
 OP_BOR = iota()
 OP_BAND = iota()
 OP_RSHIFT = iota()
@@ -70,6 +75,9 @@ def mult():
 def dividemod():
     return (OP_DIVMOD, )
 
+def powerof():
+    return (OP_POW, )
+
 def input_():
     return (OP_INPUT, )
 
@@ -108,6 +116,12 @@ def equals():
 
 def not_():
     return (OP_NOT, )
+
+def or_():
+    return (OP_OR, )
+
+def and_():
+    return (OP_AND, )
 
 def bitwise_or():
     return (OP_BOR, )
@@ -211,6 +225,9 @@ def lex(file_):
         elif new_file[cursor] == "divmod":
             yield dividemod()
             
+        elif new_file[cursor] == "^":
+            yield powerof()
+            
         elif new_file[cursor] == ",":
             yield input_()
             
@@ -250,6 +267,12 @@ def lex(file_):
 
         elif new_file[cursor] == "not":
             yield not_()
+
+        elif new_file[cursor] == "or":
+            yield or_()
+
+        elif new_file[cursor] == "and":
+            yield and_()
 
         elif new_file[cursor] == "|":
             yield bitwise_or()
@@ -405,26 +428,46 @@ def interpret(program):
         if program[cursor][0] == OP_PLUS:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
+            if type(a) != type(b):
+                print("ERROR: type of a does not match type of b")
+                exit(1)
             stack.append(a + b)
         
         if program[cursor][0] == OP_MINUS:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
+            if not (isinstance(a, int) and isinstance(b, int)):
+                print("ERROR: can not substract non-integer values")
+                exit(1)
             stack.append(a - b)
         
         if program[cursor][0] == OP_MULT:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
+            if not (isinstance(a, int) and isinstance(b, int)):
+                print("ERROR: can not multiply non-integer values")
+                exit(1)
             stack.append(a * b)
         
         if program[cursor][0] == OP_DIVMOD:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
-            stack.append(b // a)
-            stack.append(b % a)
+            if not (isinstance(a, int) and isinstance(b, int)):
+                print("ERROR: can not divmod non-integer values")
+                exit(1)
+            stack.append(a // b)
+            stack.append(a % b)
+        
+        if program[cursor][0] == OP_POW:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            if not (isinstance(a, int) and isinstance(b, int)):
+                print("ERROR: can not pow non-integer values")
+                exit(1)
+            stack.append(a ** b)
         
         if program[cursor][0] == OP_INPUT:
-            stack.pop(input())
+            stack.append(input())
         
         if program[cursor][0] == OP_DUMP:
             check_stack_length(stack, 1)
@@ -493,6 +536,16 @@ def interpret(program):
             a = stack.pop()
             stack.append(int(not a))
 
+        if program[cursor][0] == OP_OR:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            stack.append(a or b)
+
+        if program[cursor][0] == OP_AND:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            stack.append(a and b)
+
         if program[cursor][0] == OP_BOR:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
@@ -560,10 +613,21 @@ def interpret(program):
         
         cursor += 1
 
+def repl():
+    print(f"BlankLang, version {ver}")
+    print(f"REPL mode. type \".exit\" or ctrl-c to exit")
+    try:
+        while True:
+            expr = input(">>> ")
+            if expr == ".exit": exit(0)
+            interpret(list(lex(expr)))
+    except KeyboardInterrupt:
+        exit(0)
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("ERROR: no file specified")
-        exit(1)
+        repl()
+        exit(0)
     
     if not os.path.isfile(sys.argv[1]):
         print("ERROR: file does not exist")

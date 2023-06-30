@@ -1,0 +1,19 @@
+"std.bl" include
+
+0
+
+1 1000 over < while
+	
+	dup 3 % 0 =
+	over 5 % 0 =
+	or
+	if
+		swap over + swap
+	end
+	
+	1 +
+	1000 over <
+end drop
+
+.
+

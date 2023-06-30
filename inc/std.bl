@@ -1,5 +1,5 @@
 
-macro 2drop drop drop end
-macro / divmod drop end
-macro % divmod swap drop end
-macro != = not end
+macro 2drop drop drop end // a: any, b: any
+macro / divmod drop end // a: int, b: int
+macro % divmod swap drop end // a: int, b: int
+macro != = not end // a: any, b: any
