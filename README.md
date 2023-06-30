@@ -1,8 +1,4 @@
-<p align=center>
-
 # Blank Language
-
-</p>
 Stack based programming language, inspired by [porth](https://gitlab.com/tsoding/porth/).
 
 ## Roadmap
