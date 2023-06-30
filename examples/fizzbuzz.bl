@@ -1,0 +1,10 @@
+"std.bl" include
+
+1 100 over <= while
+	dup 15 % 0 = if "FizzBuzz\n" . else
+	dup 5 % 0 = if "Fizz\n" . else
+	dup 3 % 0 = if "Buzz\n" . else
+	dup . end end end
+	1 +
+	100 over <=
+end

@@ -1,0 +1,13 @@
+"std.bl" include
+
+
+1 5 over <= while
+    dup 2 % 0 != if dup . end
+    1 5 over <= while
+        dup 2 % 0 = if dup . end
+        1 +
+        5 over <=
+    end drop
+    1 +
+    5 over <=
+end

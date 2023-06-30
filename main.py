@@ -12,6 +12,8 @@ def iota(reset=0):
 
 OP_INTPUSH = iota(1)
 OP_STRINGPUSH = iota()
+OP_MEMREAD = iota()
+OP_MEMWRITE = iota()
 OP_PLUS = iota()
 OP_MINUS = iota()
 OP_MULT = iota()
@@ -29,6 +31,10 @@ OP_DROP = iota()
 OP_MACRO = iota()
 OP_EQUALS = iota()
 OP_NOT = iota()
+OP_BOR = iota()
+OP_BAND = iota()
+OP_RSHIFT = iota()
+OP_LSHIFT = iota()
 OP_LTOE = iota()
 OP_GTOE = iota()
 OP_LT = iota()
@@ -45,6 +51,12 @@ def push_int(num):
 
 def push_str(string):
     return (OP_STRINGPUSH, string)
+
+def memory_read():
+    return (OP_MEMREAD, )
+
+def memory_write():
+    return (OP_MEMWRITE, )
 
 def plus():
     return (OP_PLUS, )
@@ -88,14 +100,26 @@ def include():
 def drop():
     return (OP_DROP, )
 
-def macro_start(name, macro):
-    return (OP_MACRO, name, macro)
+def macro_start(name):
+    return (OP_MACRO, name)
 
 def equals():
     return (OP_EQUALS, )
 
 def not_():
     return (OP_NOT, )
+
+def bitwise_or():
+    return (OP_BOR, )
+
+def bitwise_and():
+    return (OP_BAND, )
+
+def bitwise_shift_right():
+    return (OP_RSHIFT, )
+
+def bitwise_shift_left():
+    return (OP_LSHIFT, )
 
 def greaterthan_or_equeal():
     return (OP_GTOE, )
@@ -136,15 +160,21 @@ def find_next(stack, cursor, func):
     return -1
 
 def lex(file_):
-    file_ = "\n".join([i.split("//")[0] for i in file_.split("\n")])
     n = 0
     buffers = []
+    file_ = "\n".join([i.split("//")[0] for i in file_.split("\n")])
     new_file = ""
     while n < len(file_):
         if file_[n] == '"':
             buf = '"'
             n += 1
-            while file_[n] != '"':
+            while True:
+                if n > 0:
+                    if file_[n] == '"' and file_[n - 1] != "\\":
+                        break
+                else:
+                    if file_[n] == '"':
+                        break
                 buf += file_[n]
                 n += 1
             buf += '"'
@@ -162,6 +192,12 @@ def lex(file_):
     while cursor < len(new_file):
         if new_file[cursor] == '"':
             yield push_str(buffers.pop(0))
+            
+        elif new_file[cursor] == 'read':
+            yield memory_read()
+            
+        elif new_file[cursor] == 'write':
+            yield memory_write()
             
         elif new_file[cursor] == "+":
             yield plus()
@@ -207,18 +243,25 @@ def lex(file_):
         
         elif new_file[cursor] == "macro":
             cursor += 1
-            name = new_file[cursor]
-            cursor += 1
-            end_ = find_next(new_file, cursor, lambda x: x == "end")
-            macro = " ".join(new_file[cursor:end_])
-            yield macro_start(name, macro)
-            cursor = end_
+            yield macro_start(new_file[cursor])
 
         elif new_file[cursor] == "=":
             yield equals()
 
         elif new_file[cursor] == "not":
             yield not_()
+
+        elif new_file[cursor] == "|":
+            yield bitwise_or()
+
+        elif new_file[cursor] == "&":
+            yield bitwise_and()
+
+        elif new_file[cursor] == ">>":
+            yield bitwise_shift_right()
+
+        elif new_file[cursor] == "<<":
+            yield bitwise_shift_left()
             
         elif new_file[cursor] == ">":
             yield greaterthan()
@@ -246,7 +289,7 @@ def lex(file_):
             
         else:
             yield push_int(new_file[cursor])
-        
+            
         cursor += 1
 
 def find_file(folders, file_name):
@@ -262,6 +305,8 @@ def check_stack_length(stack, length):
 
 stack = []  # THE stack. LEGEND VARIABLE!
 
+memory = bytearray(64 * 1024) # 64 kb of memory
+
 macros = {}
 
 n = 0
@@ -276,9 +321,14 @@ def crossreference_ends(program):
             stack.append((i[0], k))
         elif i[0] == OP_WHILE:
             stack.append((i[0], k))
+        elif i[0] == OP_MACRO:
+            stack.append((i[0], i[1], k))
         elif i[0] == OP_END:
             start = stack.pop()
-            program[start[1]] = (start[0], k)
+            if len(start) == 3:  # macro
+                program[start[2]] = (start[0], start[1], k)
+            else:
+                program[start[1]] = (start[0], k)
 
     if not len(stack) == 0:
         print("ERROR: some blocks arent closed")
@@ -291,6 +341,9 @@ def interpret(program):
     cursor = 0
 
     program = crossreference_ends(program)
+
+    if debug:
+        print(f"[DEBUG] Program: {program}")
     
     while cursor < len(program):
         n += 1
@@ -304,17 +357,50 @@ def interpret(program):
             
         if program[cursor][0] == OP_INTPUSH:
             if not isint(program[cursor][1]) and not program[cursor][1] in macros.keys():
-                print(program[cursor])
                 print(f"ERROR: no operation or macro \"{program[cursor][1]}\"")
                 exit(1)
             
             if program[cursor][1] in macros.keys():
-                interpret(list(lex(macros[program[cursor][1]])))
+                interpret(macros[program[cursor][1]])
             else:
-                stack.append(int(program[cursor][1]))
+                base = 10
+                if program[cursor][1].startswith("0b"): base = 2
+                if program[cursor][1].startswith("0x"): base = 16
+                stack.append(int(program[cursor][1], base=base))
         
         if program[cursor][0] == OP_STRINGPUSH:
             stack.append(program[cursor][1])
+        
+        if program[cursor][0] == OP_MEMREAD:
+            check_stack_length(stack, 1)
+            addr = stack.pop()
+            if not isinstance(addr, int):
+                print("ERROR: memory address should be int")
+                exit(1)
+            if not 0 <= addr < 65536:
+                print("ERROR: memory address is not beetween zero and 65535")
+                exit(1)
+            
+            stack.append(memory[addr])
+        
+        if program[cursor][0] == OP_MEMWRITE:
+            check_stack_length(stack, 2)
+            addr = stack.pop()
+            data = stack.pop()
+            if not isinstance(addr, int):
+                print("ERROR: memory address should be int")
+                exit(1)
+            if not isinstance(data, int):
+                print("ERROR: data to write to memory should be int")
+                exit(1)
+            if not 0 <= addr < 65536:
+                print("ERROR: memory address is not beetween zero and 65535")
+                exit(1)
+            if not 0 <= data < 256:
+                print("ERROR: data is not beetween zero and 255")
+                exit(1)
+            
+            memory[addr] = data
         
         if program[cursor][0] == OP_PLUS:
             check_stack_length(stack, 2)
@@ -391,9 +477,11 @@ def interpret(program):
             stack.pop()
         
         if program[cursor][0] == OP_MACRO:
+            macro_body = program[cursor + 1:program[cursor][2]]
             if debug:
-                print(f"[DEBUG] MacroDefine: \"{program[cursor][1]}\": <{program[cursor][2]}>")
-            macros[program[cursor][1]] = program[cursor][2]
+                print(f"[DEBUG] MacroDefine: \"{program[cursor][1]}\": <{macro_body}>")
+            macros[program[cursor][1]] = macro_body
+            cursor = program[cursor][2]
 
         if program[cursor][0] == OP_EQUALS:
             check_stack_length(stack, 2)
@@ -404,6 +492,26 @@ def interpret(program):
             check_stack_length(stack, 1)
             a = stack.pop()
             stack.append(int(not a))
+
+        if program[cursor][0] == OP_BOR:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            stack.append(a | b)
+
+        if program[cursor][0] == OP_BAND:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            stack.append(a & b)
+
+        if program[cursor][0] == OP_RSHIFT:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            stack.append(a >> b)
+
+        if program[cursor][0] == OP_LSHIFT:
+            check_stack_length(stack, 2)
+            a, b = stack.pop(), stack.pop()
+            stack.append(a << b)
         
         if program[cursor][0] == OP_GTOE:
             check_stack_length(stack, 2)
@@ -452,7 +560,6 @@ def interpret(program):
         
         cursor += 1
 
-# 123
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("ERROR: no file specified")
