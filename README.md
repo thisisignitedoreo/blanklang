@@ -4,13 +4,13 @@ Stack based programming language, inspired by [porth](https://gitlab.com/tsoding
 ## Roadmap
 
 - [x] Basic functionality
-- [x] Turing completeness (see (rule110.bl)[/examples/rule110.bl])
+- [x] Turing completeness (see [rule110.bl](/examples/rule110.bl)
 - [ ] idk something else
 
 ## Quickstart
 
 ```console
-$ python3 main.py helloworld.bl
+$ python3 main.py examples/helloworld.bl
 Hello! :^)
 ```
 
