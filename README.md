@@ -1,3 +1,5 @@
+
+![BL Logo](/assets/logo-512x512.png)
 # Blank Language
 Stack based programming language, inspired by [porth](https://gitlab.com/tsoding/porth/).
 
