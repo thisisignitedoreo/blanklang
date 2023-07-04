@@ -1,5 +1,6 @@
 
-macro 2drop drop drop end // a: any, b: any
-macro / divmod drop end // a: int, b: int
-macro % divmod swap drop end // a: int, b: int
-macro != = not end // a: any, b: any
+proc 2drop drop drop end // a: any, b: any
+proc / divmod drop end // a: int, b: int
+proc % divmod swap drop end // a: int, b: int
+proc != = not end // a: any, b: any
+proc revrot rot rot end // a: any, b: any, c: any

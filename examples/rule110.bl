@@ -6,21 +6,20 @@
 // board_length + 2 -- b
 // board_length + 3 -- c
 
-macro rule 110 end
-macro length 50 end
-macro iterations 50 end
+proc rule 110 end
+proc length 50 end
+proc iterations 50 end
 
-macro board_length length 3 + end
+proc board_length length 3 + end
 
 1 1 board_length - write
 
-macro print_board
+proc print_board
 	"[ " .
-	3 board_length over <= while
+	3 while board_length over <= do
 		dup read if "#" . else " " . end
 		
 		1 +
-		board_length over <=
 	end
 
 	"]\n" . 
@@ -28,22 +27,22 @@ macro print_board
 	drop
 end
 
-macro read_a 1 board_length + read end
-macro read_b 2 board_length + read end
-macro read_c 3 board_length + read end
+proc read_a 1 board_length + read end
+proc read_b 2 board_length + read end
+proc read_c 3 board_length + read end
 
-macro write_a 1 board_length + write end
-macro write_b 2 board_length + write end
-macro write_c 3 board_length + write end
+proc write_a 1 board_length + write end
+proc write_b 2 board_length + write end
+proc write_c 3 board_length + write end
 
 0 read write_a
 1 read write_b
 2 read write_c
 
-0 iterations over < while
+0 while iterations over < do
 	print_board
 	
-	1 board_length over < while
+	1 while board_length over < do
 		dup
 		2 read_a <<
 		1 read_b <<
@@ -57,9 +56,7 @@ macro write_c 3 board_length + write end
 		dup 2 + read write_c
 		
 		1 +
-		board_length over <
 	end drop
 	
 	1 +
-	iterations over <
 end drop

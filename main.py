@@ -1,53 +1,58 @@
+#!/usr/bin/env python3
+
+import codecs
+import time
 import sys
 import ast
 import os
+import io
 
 ver = "dev"
 
-iota_counter = 0
-def iota(reset=0):
-    global iota_counter
-    iota_counter += 1
-    if reset:
-        iota_counter = 0
-    return iota_counter
+operations = [
+    "OP_INTPUSH",
+    "OP_STRINGPUSH",
+    "OP_MEMREAD",
+    "OP_MEMWRITE",
+    "OP_EXIT",
+    "OP_SLEEP",
+    "OP_PLUS",
+    "OP_MINUS",
+    "OP_MULT",
+    "OP_DIVMOD",
+    "OP_POW",
+    "OP_INPUT",
+    "OP_DUMP",
+    "OP_STRINGIFY",
+    "OP_INTIFY",
+    "OP_LENGTH",
+    "OP_DUPLICATE",
+    "OP_OVER",
+    "OP_SWAP",
+    "OP_ROT",
+    "OP_INCLUDE",
+    "OP_DROP",
+    "OP_PROC",
+    "OP_EQUALS",
+    "OP_NOT",
+    "OP_OR",
+    "OP_AND",
+    "OP_BOR",
+    "OP_BAND",
+    "OP_RSHIFT",
+    "OP_LSHIFT",
+    "OP_LTOE",
+    "OP_GTOE",
+    "OP_LT",
+    "OP_GT",
+    "OP_IF",
+    "OP_ELSE",
+    "OP_WHILE",
+    "OP_END",
+]
 
-OP_INTPUSH = iota(1)
-OP_STRINGPUSH = iota()
-OP_MEMREAD = iota()
-OP_MEMWRITE = iota()
-OP_PLUS = iota()
-OP_MINUS = iota()
-OP_MULT = iota()
-OP_DIVMOD = iota()
-OP_POW = iota()
-OP_INPUT = iota()
-OP_DUMP = iota()
-OP_STRINGIFY = iota()
-OP_INTIFY = iota()
-OP_LENGTH = iota()
-OP_DUPLICATE = iota()
-OP_OVER = iota()
-OP_SWAP = iota()
-OP_INCLUDE = iota()
-OP_DROP = iota()
-OP_MACRO = iota()
-OP_EQUALS = iota()
-OP_NOT = iota()
-OP_OR = iota()
-OP_AND = iota()
-OP_BOR = iota()
-OP_BAND = iota()
-OP_RSHIFT = iota()
-OP_LSHIFT = iota()
-OP_LTOE = iota()
-OP_GTOE = iota()
-OP_LT = iota()
-OP_GT = iota()
-OP_IF = iota()
-OP_ELSE = iota()
-OP_WHILE = iota()
-OP_END = iota()
+for k, i in enumerate(operations):
+    exec(f"{i} = k")  # bad decision ;(
 
 include_paths = [os.path.abspath("inc"), os.getcwd()]
 
@@ -62,6 +67,12 @@ def memory_read():
 
 def memory_write():
     return (OP_MEMWRITE, )
+
+def exit_():
+    return (OP_EXIT, )
+
+def sleep():
+    return (OP_SLEEP, )
 
 def plus():
     return (OP_PLUS, )
@@ -102,14 +113,17 @@ def over():
 def swap():
     return (OP_SWAP, )
 
+def rot():
+    return (OP_ROT, )
+
 def include():
     return (OP_INCLUDE, )
 
 def drop():
     return (OP_DROP, )
 
-def macro_start(name):
-    return (OP_MACRO, name)
+def procedure(name):
+    return (OP_PROC, name)
 
 def equals():
     return (OP_EQUALS, )
@@ -153,8 +167,8 @@ def if_start():
 def if_else():
     return (OP_ELSE, )
 
-def while_start():
-    return (OP_WHILE, )
+def while_start(condition):
+    return (OP_WHILE, condition)
 
 def end():
     return (OP_END, )
@@ -173,11 +187,182 @@ def find_next(stack, cursor, func):
             return k + cursor
     return -1
 
+def encode_block_bytecode(block, bytesio):
+    for i in block:
+        bytesio.write(b"\xFD")
+        for j in i:
+            if isinstance(j, int):
+                bytesio.write(b"\x00")
+                bytesio.write(j.to_bytes(4, "little", signed=False))
+            elif isinstance(j, str):
+                bytesio.write(b"\x01")
+                bytesio.write(len(j.encode()).to_bytes(4, "little", signed=False))
+                bytesio.write(j.encode())
+            elif isinstance(j, list):
+                bytesio.write(b"\x02")
+                encode_block_bytecode(j, bytesio)
+                bytesio.write(b"\x03")
+            else:
+                print(f"ERROR: bytecode-encoding failure: cant encode type {type(j)}")
+                print(f"ERROR: {j}")
+        bytesio.write(b"\xFE")
+
+def encode_bytecode(lexed, bytesio):
+    bytesio.write(b"BLBC")
+    encode_block_bytecode(lexed, bytesio)
+    bytesio.write(b"\xFF")
+    bytesio.close()
+
+def decode_bytecode(bytesio):
+    magic = bytesio.read(4)
+    if magic != b"BLBC":
+        print(f"ERROR: magic does not match - file may be corrupt or not bl bytecode")
+        exit(1)
+
+    lexed = []
+
+    operation = bytesio.read(1)
+    while operation != b"\xFF":
+        if operation == b"\xFD":
+            block = []
+        elif operation == b"\xFE":
+            lexed.append(block)
+        elif operation == b"\x00":
+            int_bytes = bytesio.read(4)
+            block.append(int.from_bytes(int_bytes, "little", signed=False))
+        elif operation == b"\x01":
+            str_length = bytesio.read(4)
+            str_length = int.from_bytes(str_length, "little", signed=False)
+            string = bytesio.read(str_length).decode()
+            block.append(string)
+        elif operation == b"\x02":
+            suboperation = bytesio.read(1)
+            sublexed = []
+            while suboperation != "\x03":
+                if suboperation == b"\xFD":
+                    subblock = []
+                elif suboperation == b"\xFE":
+                    sublexed.append(subblock)
+                elif suboperation == b"\x00":
+                    int_bytes = bytesio.read(4)
+                    subblock.append(int.from_bytes(int_bytes, "little", signed=False))
+                elif suboperation == b"\x01":
+                    str_length = bytesio.read(4)
+                    str_length = int.from_bytes(str_length, "little", signed=False)
+                    string = bytesio.read(str_length).decode()
+                    subblock.append(string)
+                elif suboperation == b"\x03":
+                    break
+                elif suboperation == b"\x02":
+                    print(f"ERROR: bytecode-decoding failure: code element in code element is unsupported")
+                    exit(1)
+                else:
+                    print(f"ERROR: bytecode-decoding failure: invalid subtoken {suboperation}")
+
+                suboperation = bytesio.read(1)
+            block.append(sublexed)
+        else:
+            print(f"ERROR: bytecode-decoding failure: invalid token {operation}")
+
+        operation = bytesio.read(1)
+
+    return lexed
+
+def delex(lexed):
+    code = ""
+    assert len(operations) == 39, "some ops unimplemented (delex)"
+    for i in lexed:
+        if i[0] == OP_INTPUSH:
+            code += i[1]
+        elif i[0] == OP_STRINGPUSH:
+            code += '"' + codecs.escape_encode(i[1].encode())[0].decode() + '"'
+        elif i[0] == OP_MEMWRITE:
+            code += "write"
+        elif i[0] == OP_MEMREAD:
+            code += "read"
+        elif i[0] == OP_EXIT:
+            code += "exit"
+        elif i[0] == OP_SLEEP:
+            code += "sleep"
+        elif i[0] == OP_PLUS:
+            code += "+"
+        elif i[0] == OP_MINUS:
+            code += "-"
+        elif i[0] == OP_MULT:
+            code += "*"
+        elif i[0] == OP_DIVMOD:
+            code += "divmod"
+        elif i[0] == OP_POW:
+            code += "pow"
+        elif i[0] == OP_INPUT:
+            code += ","
+        elif i[0] == OP_DUMP:
+            code += "."
+        elif i[0] == OP_INTIFY:
+            code += "int"
+        elif i[0] == OP_STRINGIFY:
+            code += "str"
+        elif i[0] == OP_LENGTH:
+            code += "len"
+        elif i[0] == OP_DUPLICATE:
+            code += "dup"
+        elif i[0] == OP_OVER:
+            code += "over"
+        elif i[0] == OP_SWAP:
+            code += "swap"
+        elif i[0] == OP_ROT:
+            code += "rot"
+        elif i[0] == OP_INCLUDE:
+            code += "include"
+        elif i[0] == OP_DROP:
+            code += "drop"
+        elif i[0] == OP_PROC:
+            code += f"proc {i[1]}"
+        elif i[0] == OP_EQUALS:
+            code += "="
+        elif i[0] == OP_NOT:
+            code += "not"
+        elif i[0] == OP_OR:
+            code += "or"
+        elif i[0] == OP_AND:
+            code += "and"
+        elif i[0] == OP_BOR:
+            code += "|"
+        elif i[0] == OP_BAND:
+            code += "&"
+        elif i[0] == OP_RSHIFT:
+            code += ">>"
+        elif i[0] == OP_LSHIFT:
+            code += "<<"
+        elif i[0] == OP_LTOE:
+            code += "<="
+        elif i[0] == OP_GTOE:
+            code += ">="
+        elif i[0] == OP_LT:
+            code += "<"
+        elif i[0] == OP_GT:
+            code += ">"
+        elif i[0] == OP_IF:
+            code += "if"
+        elif i[0] == OP_ELSE:
+            code += "else"
+        elif i[0] == OP_WHILE:
+            code += f"while {delex(i[1])} do"
+        elif i[0] == OP_END:
+            code += "end"
+        else:
+            print(f"ERROR: delexing: unimplemented operation: <{operations[i[0]]}> (id: {i[0]})")
+            exit()
+
+        code += " "
+
+    return code
+
 def lex(file_):
     n = 0
     buffers = []
-    file_ = "\n".join([i.split("//")[0] for i in file_.split("\n")])
     new_file = ""
+
     while n < len(file_):
         if file_[n] == '"':
             buf = '"'
@@ -200,8 +385,10 @@ def lex(file_):
         new_file += file_[n]
         n += 1
 
+    new_file = "\n".join([i.split("//")[0] for i in new_file.split("\n")])
     new_file = new_file.split()
 
+    assert len(operations) == 39, "some ops unimplemented (lex)"
     cursor = 0
     while cursor < len(new_file):
         if new_file[cursor] == '"':
@@ -209,9 +396,15 @@ def lex(file_):
             
         elif new_file[cursor] == 'read':
             yield memory_read()
-            
+
         elif new_file[cursor] == 'write':
             yield memory_write()
+
+        elif new_file[cursor] == 'exit':
+            yield exit_()
+
+        elif new_file[cursor] == 'sleep':
+            yield sleep()
             
         elif new_file[cursor] == "+":
             yield plus()
@@ -248,19 +441,22 @@ def lex(file_):
             
         elif new_file[cursor] == "over":
             yield over()
-            
+
         elif new_file[cursor] == "swap":
             yield swap()
-            
+
+        elif new_file[cursor] == "rot":
+            yield rot()
+
         elif new_file[cursor] == "include":
             yield include()
             
         elif new_file[cursor] == "drop":
             yield drop()
         
-        elif new_file[cursor] == "macro":
+        elif new_file[cursor] == "proc":
             cursor += 1
-            yield macro_start(new_file[cursor])
+            yield procedure(new_file[cursor])
 
         elif new_file[cursor] == "=":
             yield equals()
@@ -305,7 +501,14 @@ def lex(file_):
             yield if_else()
             
         elif new_file[cursor] == "while":
-            yield while_start()
+            do = find_next(new_file, cursor, lambda x: x == "do")
+            if do == -1:
+                print("ERROR: do expected, but not found")
+                exit(1)
+            cursor += 1
+            condition = lex(" ".join(new_file[cursor:do]))
+            yield while_start(list(condition))
+            cursor = do
 
         elif new_file[cursor] == "end":
             yield end()
@@ -330,7 +533,7 @@ stack = []  # THE stack. LEGEND VARIABLE!
 
 memory = bytearray(64 * 1024) # 64 kb of memory
 
-macros = {}
+procedures = {}
 
 n = 0
 
@@ -342,13 +545,11 @@ def crossreference_ends(program):
     for k, i in enumerate(program):
         if i[0] == OP_IF:
             stack.append((i[0], k))
-        elif i[0] == OP_WHILE:
-            stack.append((i[0], k))
-        elif i[0] == OP_MACRO:
+        elif i[0] == OP_WHILE or i[0] == OP_PROC:
             stack.append((i[0], i[1], k))
         elif i[0] == OP_END:
             start = stack.pop()
-            if len(start) == 3:  # macro
+            if len(start) == 3:  # procedure || while
                 program[start[2]] = (start[0], start[1], k)
             else:
                 program[start[1]] = (start[0], k)
@@ -374,17 +575,17 @@ def interpret(program):
             print("[DEBUG] Step")
             print(f"[DEBUG] Step: {n}")
             print(f"[DEBUG] Stack: <{', '.join(map(repr, stack))}>")
-            print(f"[DEBUG] Current: [<{'>, <'.join(map(repr, program[cursor]))}>]")
+            print(f"[DEBUG] Current: [<{'>, <'.join([operations[i] if k == 0 else repr(i) for k, i in enumerate(program[cursor])])}>]")
             print(f"[DEBUG] Cursor: {cursor}")
             
             
         if program[cursor][0] == OP_INTPUSH:
-            if not isint(program[cursor][1]) and not program[cursor][1] in macros.keys():
-                print(f"ERROR: no operation or macro \"{program[cursor][1]}\"")
+            if not isint(program[cursor][1]) and not program[cursor][1] in procedures.keys():
+                print(f"ERROR: no operation or procedure \"{program[cursor][1]}\"")
                 exit(1)
             
-            if program[cursor][1] in macros.keys():
-                interpret(macros[program[cursor][1]])
+            if program[cursor][1] in procedures.keys():
+                interpret(procedures[program[cursor][1]])
             else:
                 base = 10
                 if program[cursor][1].startswith("0b"): base = 2
@@ -424,7 +625,25 @@ def interpret(program):
                 exit(1)
             
             memory[addr] = data
-        
+
+        if program[cursor][0] == OP_EXIT:
+            check_stack_length(stack, 1)
+            a = stack.pop()
+            if not isinstance(a, int):
+                print("ERROR: exit code should be integer")
+                exit(1)
+
+            exit(a)
+
+        if program[cursor][0] == OP_SLEEP:
+            check_stack_length(stack, 1)
+            a = stack.pop()
+            if not isinstance(a, int):
+                print("ERROR: sleep amount should be integer")
+                exit(1)
+
+            time.sleep(a)
+
         if program[cursor][0] == OP_PLUS:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
@@ -502,11 +721,18 @@ def interpret(program):
             check_stack_length(stack, 2)
             a = stack[-2]
             stack.append(a)
-        
+
         if program[cursor][0] == OP_SWAP:
             check_stack_length(stack, 2)
             a, b = stack.pop(), stack.pop()
             stack.append(a)
+            stack.append(b)
+
+        if program[cursor][0] == OP_ROT:
+            check_stack_length(stack, 2)
+            a, b, c = stack.pop(), stack.pop(), stack.pop()
+            stack.append(a)
+            stack.append(c)
             stack.append(b)
         
         if program[cursor][0] == OP_INCLUDE:
@@ -519,11 +745,14 @@ def interpret(program):
             check_stack_length(stack, 1)
             stack.pop()
         
-        if program[cursor][0] == OP_MACRO:
-            macro_body = program[cursor + 1:program[cursor][2]]
+        if program[cursor][0] == OP_PROC:
+            proc_body = program[cursor + 1:program[cursor][2]]
             if debug:
-                print(f"[DEBUG] MacroDefine: \"{program[cursor][1]}\": <{macro_body}>")
-            macros[program[cursor][1]] = macro_body
+                print(f"[DEBUG] ProcedureDefine: \"{program[cursor][1]}\": <{proc_body}>")
+            if program[cursor][1] in procedures.keys():
+                print(f"ERROR: procedure {program[cursor][1]} already exists")
+                exit(1)
+            procedures[program[cursor][1]] = proc_body
             cursor = program[cursor][2]
 
         if program[cursor][0] == OP_EQUALS:
@@ -602,13 +831,14 @@ def interpret(program):
                     cursor = elseif
         
         if program[cursor][0] == OP_WHILE:
-            end = program[cursor][1]
+            end = program[cursor][2]
+            condition = program[cursor][1]
             check_stack_length(stack, 1)
-            while_value = stack.pop()
-            while while_value:
+            interpret(condition)
+            while stack.pop():
                 interpret(program[cursor + 1:end])
                 check_stack_length(stack, 1)
-                while_value = stack.pop()
+                interpret(condition)
             cursor = end
         
         cursor += 1
@@ -632,6 +862,14 @@ if __name__ == "__main__":
     if not os.path.isfile(sys.argv[1]):
         print("ERROR: file does not exist")
         exit(1)
-        
-    interpret(list(lex(open(sys.argv[1]).read())))
+
+    if "--encode" in sys.argv:
+        encode_bytecode(list(lex(open(sys.argv[1]).read())), open(f"{os.getcwd()}/{sys.argv[1].split('/')[-1].split('.')[0]}.bc", "wb"))
+    elif "--decode" in sys.argv:
+        interpret(decode_bytecode(open(sys.argv[1], "rb")))
+    elif "--decompile" in sys.argv:
+        print(delex(decode_bytecode(open(sys.argv[1], "rb"))))
+        open(sys.argv[1].split(".")[0] + ".bl", "w").write(delex(decode_bytecode(open(sys.argv[1], "rb"))))
+    else:
+        interpret(list(lex(open(sys.argv[1]).read())))
     
