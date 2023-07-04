@@ -1,5 +1,5 @@
 
-![BL Logo](/assets/logo-512x512.png)
+<img alt="logo" src="/assets/logo-512x512.png" width=128 heigth=128>
 # Blank Language
 Stack based programming language, inspired by [porth](https://gitlab.com/tsoding/porth/).
 
